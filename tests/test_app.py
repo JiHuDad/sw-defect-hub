@@ -174,3 +174,19 @@ def test_missing_resources_and_static_security(client):
     assert response.status_code == 200 and 'SW Defect Hub' in response.text
     assert "script-src 'self'" in response.headers['content-security-policy']
     assert client.get('/healthz').json()['status'] == 'ok'
+
+
+def test_part_groups_include_empty_parts_and_keep_scoped_counts(client):
+    parts = ['VP', 'OP', 'FS', 'RS', 'NP', 'DS', 'Security']
+    empty = client.get('/api/groups?level=part&release=SVR26B&branch=INTEG').json()
+    assert empty == [{'name': name, 'runs': 0, 'findings': 0} for name in parts]
+    assert upload(client, metadata(branch='INTEG', part='VP')).status_code == 200
+    assert upload(client, metadata(execution_id='zero-op', branch='INTEG', part='OP', no_findings=True), []).status_code == 200
+    assert upload(client, metadata(execution_id='other-release', release='SVR27A', branch='INTEG', part='VP')).status_code == 200
+    rows = client.get('/api/groups?level=part&release=SVR26B&branch=INTEG').json()
+    assert [row['name'] for row in rows] == parts
+    assert rows[0] == {'name': 'VP', 'runs': 1, 'findings': 1}
+    assert rows[1] == {'name': 'OP', 'runs': 1, 'findings': 0}
+    assert all(row['runs'] == row['findings'] == 0 for row in rows[2:])
+    assert client.get('/api/groups?level=part&release=SVR26B&branch=INTEG&page=2').json() == []
+    assert client.get('/api/groups?level=cl&release=SVR26B&branch=INTEG&part=FS').json() == []

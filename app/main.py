@@ -183,7 +183,11 @@ def create_app(database_url=None, upload_token=None):
         counts = select(Finding.run_id, func.count().label('n')).group_by(Finding.run_id).subquery()
         query = select(column, func.count(Run.id), func.coalesce(func.sum(counts.c.n), 0)).outerjoin(
             counts, counts.c.run_id == Run.id).where(*filters(release, branch, part)).group_by(column).order_by(column).offset((page - 1) * 200).limit(200)
-        return [{'name': name, 'runs': int(runs), 'findings': int(n)} for name, runs, n in session.execute(query)]
+        items = [{'name': name, 'runs': int(runs), 'findings': int(n)} for name, runs, n in session.execute(query)]
+        if level == 'part' and page == 1:
+            by_name = {item['name']: item for item in items}
+            return [by_name.get(name, {'name': name, 'runs': 0, 'findings': 0}) for name in PARTS]
+        return items
 
     @app.get('/api/runs')
     def runs(release: str = '', branch: str = '', part: str = '', cl: str = '', q: str = '',

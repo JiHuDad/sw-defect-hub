@@ -39,6 +39,7 @@ FastAPI + SQLAlchemy + PostgreSQL + Nginx + Docker Compose.
 ## 현재 화면 구성
 
 - 왼쪽 고정 메뉴: 검사 결과 / 통계 / 결과 등록.
+- 파트 선택은 실행/Finding 유무와 관계없이 VP, OP, FS, RS, NP, DS, Security 전체를 고정 순서로 표시하며 미등록 파트는 0건으로 표시.
 - 검사 결과 시작 화면은 PKG 버전 카드. 버전 → 브랜치 → 파트 → CL → 실행 → Finding으로 탐색.
 - 통계는 별도 메뉴에서 조회하며 선택 중인 버전/브랜치/파트를 이어받음. PKG 버전은 기존 release 필드의 화면 명칭이며 DB/API는 유지.
 - 단계별 범위·통계 모드 URL 보존. 기존 Run/Finding 직접 링크 지원.
