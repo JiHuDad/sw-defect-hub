@@ -1,0 +1,59 @@
+name: sw-defect-hub
+services:
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    environment:
+      POSTGRES_DB: defects
+      POSTGRES_USER: defects
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/configure.py first}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U defects -d defects']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  app:
+    build:
+      context: .
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
+      secrets:
+        - pip_config
+    environment:
+      DATABASE_URL: postgresql+psycopg://defects:${POSTGRES_PASSWORD}@db:5432/defects
+      UPLOAD_TOKEN: ${UPLOAD_TOKEN:?Run scripts/configure.py first}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+  web:
+    image: ${NGINX_IMAGE:-nginx:1.28-alpine}
+    ports:
+      - ${BIND_ADDRESS:-0.0.0.0}:${PORT:-9999}:8080
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  database:
+secrets:
+  pip_config:
+    file: ./.pip.conf
