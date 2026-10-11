@@ -1,6 +1,7 @@
 # Codex 작업 인계 — SW Defect Hub
 
 ## 시작 위치
+- 2026-10-11 Mac 후속 검증 완료: 아래 기록 및 docs/VALIDATION.md 참조.
 - 사용자 Mac 저장소: /Users/fall/dev/sw-defect-hub
 - GitHub: https://github.com/JiHuDad/sw-defect-hub
 - 구현 반영 commit: 3948ffce3d0c7b985fefba0a7e5cef9f416a0133
@@ -49,10 +50,12 @@ FastAPI + SQLAlchemy + PostgreSQL + Nginx + Docker Compose.
 - 운영 DB/앱 포트는 외부 미공개. 기본 웹 포트 9999.
 
 ## 검증 사실과 남은 작업
-- 이전 작업 환경 Python 3.12/SQLite: 테스트 27개 통과.
+- 사용자 Mac Python 3.12.14/SQLite: 테스트 27개 통과 (실제 HTTP 클라이언트 포함).
+- Node UI 회귀 테스트 3개 통과. 수동 0건/MD/중단 등록, MD 렌더링, 상태·담당자·댓글·이력 저장, 새로고침 보존, 전체/최신 통계를 실제 브라우저에서 확인.
+- 상세 화면의 탐색 갱신, 업로드 옵션 모순 방지, 요약 중단 건수 표시를 수정.
 - 실제 로컬 HTTP 서버와 업로드 클라이언트 통신 검증 완료.
 - JS/shell/Python syntax와 Compose YAML 파싱 완료.
-- Docker build/start, 실제 PostgreSQL 통합 테스트, pg_dump/restore 왕복, 브라우저 렌더링/클릭 검증은 미완료.
+- 이 Mac에는 Docker가 없음. Docker build/start, 실제 PostgreSQL 통합 테스트, pg_dump/restore 왕복은 미완료. 모바일 화면과 브라우저 다운로드 저장도 미검증.
 - PostgreSQL 테스트 구성은 제공했지만 실행 통과로 보고하면 안 됨.
 - 실제 Linux 테스트 서버는 아직 준비되지 않았다. 사용자가 준비되면 알려주기로 했다.
 - 회사 프록시/이미지/CA/방화벽 값과 실제 MD 양식도 미제공.

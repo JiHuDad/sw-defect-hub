@@ -104,8 +104,11 @@ python3 -m venv .venv
 ```bash
 .venv/bin/pytest -q
 node --check app/static/app.js
+node --test tests/test_ui.cjs
 bash -n scripts/install.sh scripts/manage.sh
 ```
+
+UI 회귀 테스트는 Node.js 18 이상에서 별도 패키지 설치 없이 실행합니다. 브라우저 클릭 검증을 대체하지는 않습니다.
 
 PostgreSQL 17을 사용하는 별도 임시 컨테이너 환경 테스트:
 
