@@ -1,6 +1,6 @@
 # SW Defect Hub
 
-릴리스 → 브랜치 → 파트 → Perforce CL → 검사 실행 → Finding MD 순서로 조회하는 사내 협업 웹입니다.
+PKG 버전 → 브랜치 → 파트 → Perforce CL → 검사 실행 → Finding MD 순서로 조회하는 사내 협업 웹입니다. 왼쪽 메뉴에서 검사 결과·통계·결과 등록을 선택합니다. 첫 화면의 버전 카드를 클릭해 단계별로 들어가고, 상세 통계는 통계 메뉴에서 조회합니다.
 
 초기 구현 버전: **0.1.0**. Ubuntu/Debian + Docker Compose + PostgreSQL을 운영 대상으로 합니다.
 외부 CDN, Node 빌드, 인터넷 기반 AI 호출 없이 웹을 실행합니다. 설치 시 이미지와 Python 패키지는 사내 프록시/저장소를 사용할 수 있습니다.

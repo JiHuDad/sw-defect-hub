@@ -36,6 +36,13 @@ FastAPI + SQLAlchemy + PostgreSQL + Nginx + Docker Compose.
 - compose.test.yaml: 운영 DB와 분리한 PostgreSQL 17 테스트 환경.
 - docs/DESIGN.md, API.md, OPERATIONS.md, VALIDATION.md: 상세 설계와 제한.
 
+## 현재 화면 구성
+
+- 왼쪽 고정 메뉴: 검사 결과 / 통계 / 결과 등록.
+- 검사 결과 시작 화면은 PKG 버전 카드. 버전 → 브랜치 → 파트 → CL → 실행 → Finding으로 탐색.
+- 통계는 별도 메뉴에서 조회하며 선택 중인 버전/브랜치/파트를 이어받음. PKG 버전은 기존 release 필드의 화면 명칭이며 DB/API는 유지.
+- 단계별 범위·통계 모드 URL 보존. 기존 Run/Finding 직접 링크 지원.
+
 ## 중요한 동작
 - 같은 execution_id와 같은 내용 재전송은 중복 생성하지 않음.
 - 같은 execution_id에 다른 내용은 409. 실제 재검사는 새 ID.
@@ -51,7 +58,7 @@ FastAPI + SQLAlchemy + PostgreSQL + Nginx + Docker Compose.
 
 ## 검증 사실과 남은 작업
 - 사용자 Mac Python 3.12.14/SQLite: 테스트 27개 통과 (실제 HTTP 클라이언트 포함).
-- Node UI 회귀 테스트 3개 통과. 수동 0건/MD/중단 등록, MD 렌더링, 상태·담당자·댓글·이력 저장, 새로고침 보존, 전체/최신 통계를 실제 브라우저에서 확인.
+- Node UI 회귀 테스트 6개 통과. 수동 0건/MD/중단 등록, MD 렌더링, 상태·담당자·댓글·이력 저장, 새로고침 보존, 전체/최신 통계를 실제 브라우저에서 확인.
 - 상세 화면의 탐색 갱신, 업로드 옵션 모순 방지, 요약 중단 건수 표시를 수정.
 - 실제 로컬 HTTP 서버와 업로드 클라이언트 통신 검증 완료.
 - JS/shell/Python syntax와 Compose YAML 파싱 완료.
