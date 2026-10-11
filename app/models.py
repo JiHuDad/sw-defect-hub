@@ -42,6 +42,7 @@ class Finding(Base):
     sha256: Mapped[str] = mapped_column(String(64))
     judgment: Mapped[str] = mapped_column(String(30), default='unreviewed')
     progress: Mapped[str] = mapped_column(String(30), default='open')
+    fix_cl: Mapped[str] = mapped_column(String(30), default='', server_default='')
     assignee: Mapped[str] = mapped_column(String(80), default='')
     revision: Mapped[int] = mapped_column(Integer, default=1)
     __table_args__ = (UniqueConstraint('run_id', 'filename'),)

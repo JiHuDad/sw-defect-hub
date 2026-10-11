@@ -64,3 +64,11 @@
 - `/api/groups?level=part`가 등록된 실행 유무와 관계없이 7개 파트를 고정 순서로 반환하도록 수정했습니다. 기존 버전/브랜치 범위의 건수는 유지하며 빈 파트는 실행 0/Findings 0으로 표시합니다.
 - `pytest -q tests/test_app.py`: **25개 통과**. 빈 파트, 정상 완료 0건 실행의 파트, 다른 버전 결과의 범위 분리, 페이지 2 중복 방지를 검증했습니다.
 - 실제 브라우저에서 전체 파트 표시와 미등록 OP 파트의 빈 CL 화면 진입/상단 경로 복귀를 확인했습니다.
+
+## Finding 종료·수정 CL 후속 검증 (2026-10-11)
+
+- 전체 Python 테스트 **39개**, UI 회귀 테스트 **7개** 통과. 기존 Starlette httpx deprecation 경고 1개는 남아 있습니다.
+- API: Open → False positive → Won’t fix → Fixed → verified → Open 전환, 수정 CL 저장/해제 이력, revision 충돌, 잘못된 CL/모순된 상태의 원자적 거부, 목록·통계·CSV의 Open/Closed를 검증했습니다.
+- 구 SQLite 스키마에서 fix_cl 컬럼 추가를 두 번 실행하고 원문(CRLF 포함), 판단·진행·revision·댓글·Run 보존을 확인했습니다. 실제 Mac 검증용 SQLite DB도 기존 데이터를 보존하며 갱신했습니다.
+- 실제 브라우저: Won’t fix 및 False positive 종료, 수정 CL 없을 때 Fixed 저장 차단, CL 123789로 Fixed 저장, 새로고침 보존, 재오픈 시 CL 해제·상태 이력, 목록의 Closed/Fixed/CL 표시, 통계의 Open 0/Closed 1을 확인했습니다. 브라우저 console 오류/경고는 없었습니다.
+- 실제 PostgreSQL의 ALTER/잠금 실행과 Docker 빌드는 서버 준비 후 검증해야 합니다. Linux 배포는 수행하지 않았습니다.

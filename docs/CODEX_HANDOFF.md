@@ -44,6 +44,13 @@ FastAPI + SQLAlchemy + PostgreSQL + Nginx + Docker Compose.
 - 통계는 별도 메뉴에서 조회하며 선택 중인 버전/브랜치/파트를 이어받음. PKG 버전은 기존 release 필드의 화면 명칭이며 DB/API는 유지.
 - 단계별 범위·통계 모드 URL 보존. 기존 Run/Finding 직접 링크 지원.
 
+## Finding 처리 결과 후속 구현
+
+- false_positive 및 confirmed의 wont_fix/fixed/verified는 Closed. 미검토/보류/미처리/진행 중은 Open.
+- fixed/verified에는 수정 CL(fix_cl) 필수. Finding 목록·상세와 통계/CSV에 Open/Closed를 표시.
+- 재오픈 지원. 수정 CL·상태 변경 전후 값을 Event에 남김. 기존 revision 충돌 검사는 유지.
+- `app/migrations.py`: 시작 시 fix_cl 컬럼을 보존적으로 추가. SQLite 구버전 스키마에서 데이터 보존·반복 적용 테스트 완료. 실제 PostgreSQL 스키마 갱신은 Linux 검증 필요.
+
 ## 중요한 동작
 - 같은 execution_id와 같은 내용 재전송은 중복 생성하지 않음.
 - 같은 execution_id에 다른 내용은 409. 실제 재검사는 새 ID.

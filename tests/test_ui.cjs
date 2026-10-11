@@ -14,6 +14,7 @@ function workspace(responses) {
   node('#upload-form').elements = {
     status: {value:'completed'}, no_findings: {checked:false}, files: {value:'finding.md'}
   };
+  node('#review').elements={judgment:{value:'confirmed'},progress:{value:'open'},fix_cl:{value:''}};
   const requests = [];
   const context = vm.createContext({
     document: {querySelector:node, querySelectorAll:()=>[]},
@@ -114,4 +115,17 @@ test('slow result response does not replace a newly selected statistics view',as
   finish(groups);await pending;
   assert.match(ui.node('#content').innerHTML,/검사 통계/);
   assert.doesNotMatch(ui.node('#content').innerHTML,/PKG 버전 선택/);
+});
+
+test('closing review requires a fix CL only for fixed/verified and supports reopening',()=>{
+  const ui=workspace(()=>undefined),form=ui.node('#review').elements;
+  form.progress.value='fixed';ui.run("syncReviewControls('progress')");
+  assert.equal(form.judgment.value,'confirmed');assert.equal(form.fix_cl.required,true);
+  form.fix_cl.value='456';form.judgment.value='false_positive';ui.run("syncReviewControls('judgment')");
+  assert.equal(form.progress.value,'false_positive');assert.equal(form.progress.disabled,true);
+  assert.equal(form.fix_cl.disabled,true);assert.equal(form.fix_cl.value,'');
+  form.judgment.value='confirmed';form.progress.value='wont_fix';ui.run("syncReviewControls('progress')");
+  assert.equal(form.progress.disabled,false);assert.equal(form.fix_cl.required,false);
+  form.progress.value='open';ui.run("syncReviewControls('progress')");
+  assert.equal(form.fix_cl.disabled,true);
 });

@@ -17,14 +17,15 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from markdown_it import MarkdownIt
 from pydantic import BaseModel, Field, field_validator, model_validator
-from sqlalchemy import select, func, update, exists
+from sqlalchemy import select, func, update, exists, case
 from sqlalchemy.exc import IntegrityError
 
-from .models import Base, Run, Finding, Event, database
+from .models import Run, Finding, Event, database
+from .migrations import initialize_database
 
 PARTS = ['VP', 'OP', 'FS', 'RS', 'NP', 'DS', 'Security']
 JUDGMENTS = ['unreviewed', 'confirmed', 'false_positive', 'deferred']
-PROGRESS = ['open', 'in_progress', 'fixed', 'verified']
+PROGRESS = ['open', 'in_progress', 'wont_fix', 'fixed', 'verified']
 STATIC = Path(__file__).parent / 'static'
 
 
@@ -69,8 +70,21 @@ class Review(BaseModel):
     revision: int = Field(ge=1)
     actor: str = Field(min_length=1, max_length=80)
     judgment: Literal['unreviewed', 'confirmed', 'false_positive', 'deferred']
-    progress: Literal['open', 'in_progress', 'fixed', 'verified']
+    progress: Literal['open', 'in_progress', 'wont_fix', 'fixed', 'verified']
     assignee: str = Field(default='', max_length=80)
+    fix_cl: str = Field(default='', max_length=20, pattern=r'^(|[1-9][0-9]{0,19})$')
+
+    @model_validator(mode='after')
+    def resolution(self):
+        if self.judgment == 'false_positive' and self.progress != 'open':
+            raise ValueError('False positive는 수정 진행 없이 종료합니다.')
+        if self.progress in {'wont_fix', 'fixed', 'verified'} and self.judgment != 'confirmed':
+            raise ValueError('실제 결함으로 판단한 결과만 Won’t fix 또는 Fixed로 종료할 수 있습니다.')
+        if self.progress in {'fixed', 'verified'} and not self.fix_cl:
+            raise ValueError('Fixed/검증 완료에는 수정 CL 번호가 필요합니다.')
+        if self.progress not in {'fixed', 'verified'} and self.fix_cl:
+            raise ValueError('수정 CL은 Fixed/검증 완료에서만 입력합니다.')
+        return self
 
     @field_validator('actor')
     @classmethod
@@ -106,7 +120,7 @@ def create_app(database_url=None, upload_token=None):
 
     @asynccontextmanager
     async def lifespan(app):
-        Base.metadata.create_all(engine)
+        initialize_database(engine)
         yield
         engine.dispose()
 
@@ -164,8 +178,12 @@ def create_app(database_url=None, upload_token=None):
                 'cl', 'status', 'uploader', 'started_at', 'finished_at', 'created_at')} | {'finding_count': count}
 
     def finding_data(item):
+        closed = item.judgment == 'false_positive' or item.progress in {'wont_fix', 'fixed', 'verified'}
+        resolution = 'false_positive' if item.judgment == 'false_positive' else item.progress if closed else None
         return {key: getattr(item, key) for key in ('id', 'run_id', 'filename', 'title', 'judgment',
-                                                   'progress', 'assignee', 'revision', 'sha256')}
+                                                   'progress', 'fix_cl', 'assignee', 'revision', 'sha256')} | {
+            'status': 'closed' if closed else 'open', 'resolution': resolution}
+
 
     def scoped_ids(release='', branch='', part='', cl='', mode='all'):
         scope = filters(release, branch, part, cl)
@@ -315,13 +333,16 @@ def create_app(database_url=None, upload_token=None):
         if not item:
             raise HTTPException(404, 'Finding이 없습니다.')
         before = finding_data(item)
-        after = {k: getattr(body, k) for k in ('judgment', 'progress', 'assignee')}
+        after = {k: getattr(body, k) for k in ('judgment', 'progress', 'assignee', 'fix_cl')}
         result = session.execute(update(Finding).where(Finding.id == finding_id, Finding.revision == body.revision)
                                  .values(**after, revision=Finding.revision + 1))
         if result.rowcount != 1:
             session.rollback()
             raise HTTPException(409, '다른 팀원이 먼저 변경했습니다. 새로고침 후 다시 저장하세요.')
         changes = {k: {'before': before[k], 'after': v} for k, v in after.items() if before[k] != v}
+        next_status = 'closed' if body.judgment == 'false_positive' or body.progress in {'wont_fix', 'fixed', 'verified'} else 'open'
+        if before['status'] != next_status:
+            changes['status'] = {'before': before['status'], 'after': next_status}
         session.add(Event(finding_id=finding_id, actor=body.actor, kind='review', detail=json.dumps(changes, ensure_ascii=False)))
         session.commit()
         session.expire_all()
@@ -355,7 +376,7 @@ def create_app(database_url=None, upload_token=None):
         data = {}
         def row(key):
             return data.setdefault(key, {'release': key[0], 'branch': key[1], 'part': key[2], 'runs': 0,
-                'completed': 0, 'failed': 0, 'cancelled': 0, 'findings': 0, **{j: 0 for j in JUDGMENTS}})
+                'completed': 0, 'failed': 0, 'cancelled': 0, 'findings': 0, 'open': 0, 'closed': 0, **{j: 0 for j in JUDGMENTS}})
         for r, b, p, status, n in run_rows:
             item = row((r, b, p)); item['runs'] += n; item[status] += n
         finding_rows = session.execute(select(Run.release, Run.branch, Run.part, Finding.judgment, func.count())
@@ -363,6 +384,13 @@ def create_app(database_url=None, upload_token=None):
             .group_by(Run.release, Run.branch, Run.part, Finding.judgment))
         for r, b, p, judgment, n in finding_rows:
             item = row((r, b, p)); item['findings'] += n; item[judgment] += n
+        closed = case((Finding.judgment == 'false_positive', 1),
+                      (Finding.progress.in_(['wont_fix', 'fixed', 'verified']), 1), else_=0)
+        status_rows = session.execute(select(Run.release, Run.branch, Run.part, func.count(), func.sum(closed))
+            .join(Finding, Run.id == Finding.run_id).where(Run.id.in_(ids), Run.status == 'completed')
+            .group_by(Run.release, Run.branch, Run.part))
+        for r, b, p, n, closed_count in status_rows:
+            item = row((r, b, p)); item['closed'] = int(closed_count); item['open'] = n - int(closed_count)
         result = []
         for key in sorted(data):
             item = data[key]
@@ -383,7 +411,7 @@ def create_app(database_url=None, upload_token=None):
                   mode: Literal['all', 'latest'] = 'all', session=Depends(db)):
         rows = stats_data(session, release, branch, part, cl, mode)
         columns = ['release', 'branch', 'part', 'runs', 'completed', 'failed', 'cancelled', 'findings',
-                   *JUDGMENTS, 'false_positive_rate', 'review_rate']
+                   *JUDGMENTS, 'open', 'closed', 'false_positive_rate', 'review_rate']
         output = io.StringIO(); writer = csv.DictWriter(output, fieldnames=columns); writer.writeheader()
         # Protect spreadsheet users from CSV formula injection in free-form labels.
         for item in rows:

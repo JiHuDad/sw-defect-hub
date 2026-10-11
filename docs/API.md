@@ -92,7 +92,7 @@ subprocess.run(command, check=True)  # 환경에서 URL과 토큰 주입
 | GET /api/runs/{id} | 실행 메타데이터와 Findings (page) |
 | GET /api/findings/{id} | 렌더링 HTML 및 검토 상태 |
 | GET /api/findings/{id}/raw | 원본 MD 다운로드 |
-| PATCH /api/findings/{id} | revision, actor, judgment, progress, assignee |
+| PATCH /api/findings/{id} | revision, actor, judgment, progress, assignee, fix_cl |
 | POST /api/findings/{id}/comments | actor, text |
 | GET /api/findings/{id}/events | 의견·변경 이력 (page) |
 | GET /api/stats | 분류 필터 및 mode=all\|latest |
@@ -102,3 +102,19 @@ subprocess.run(command, check=True)  # 환경에서 URL과 토큰 주입
 웹 변경 API에는 `X-Requested-With: DefectHub`가 필요하며 Origin이 있으면 같은 origin이어야 합니다.
 상태 변경 요청은 마지막 조회의 revision을 전달해야 합니다. 409이면 새 상태를 읽고 사용자가 다시 판단합니다.
 자동 업로드 토큰은 사용자 계정 인증 수단이 아닙니다.
+
+## Finding 종료와 수정 CL
+
+조회 응답에 `status`(open/closed), `resolution`(false_positive/wont_fix/fixed/verified 또는 null), `fix_cl`을 제공합니다. 상태는 판단·처리 결과에서 계산하므로 서로 다른 Open/Closed 값을 별도로 저장하지 않습니다.
+
+```json
+{"revision": 2, "actor": "검토자", "judgment": "confirmed", "progress": "fixed", "fix_cl": "123789", "assignee": "담당자"}
+```
+
+- `judgment=false_positive`, `progress=open`, `fix_cl=""`: 오탐으로 Closed. progress=open은 내부 수정 진행 값이며 종료 상태는 status=closed입니다.
+- `judgment=confirmed`, `progress=wont_fix`, `fix_cl=""`: 수정하지 않기로 결정, Closed.
+- `judgment=confirmed`, `progress=fixed|verified`: 양의 정수 문자열 수정 CL 필수, Closed.
+- 그 외 `progress=open|in_progress`: Open. 보류·미검토는 종료가 아닙니다.
+- 재오픈 시 판단을 false_positive 이외로 바꾸고 progress=open|in_progress, fix_cl=""를 전송합니다. 이전 수정 CL과 종료 상태는 변경 이력에 남습니다.
+- 수정/검증 완료·Won’t fix는 실제 결함 판단이 필요합니다. 모순된 상태나 잘못된 수정 CL은 422로 거부하며 revision/이력을 변경하지 않습니다.
+- 통계와 CSV에 `open`, `closed` 건수를 추가했습니다. 기존과 같이 정상 완료 실행의 Findings만 집계합니다. Won’t fix/Fixed는 실제 결함 통계에 남고 오탐은 오탐 통계에 남습니다.

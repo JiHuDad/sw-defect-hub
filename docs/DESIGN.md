@@ -52,8 +52,8 @@ failed/cancelled의 파일 없음은 Finding 0건 정상 완료가 아닙니다.
 실패 시 부분 MD도 보관할 수 있지만 정상 완료 Finding 통계에는 포함하지 않습니다.
 
 Finding 판단: unreviewed, confirmed, false_positive, deferred.
-Finding 수정 진행: open, in_progress, fixed, verified.
-두 상태는 독립이며, 검토 상태 변경은 revision이 일치할 때만 저장합니다.
+Finding 처리 결과: open, in_progress, wont_fix, fixed, verified. Fixed/verified에는 수정 CL(fix_cl)이 필요합니다.
+결함 판단과 처리 결과를 함께 기록합니다. false_positive는 Closed이며, 실제 결함의 wont_fix/fixed/verified도 Closed입니다. 나머지는 Open입니다. fixed/verified/wont_fix는 confirmed 판단이 필요하며, 검토 상태 변경은 revision이 일치할 때만 저장합니다.
 댓글과 상태 변경 이벤트는 작성자 이름/UTC 시각을 기록합니다. 화면 시각은 브라우저 현지 시간으로 표시합니다.
 
 ## 통계 기준
@@ -96,3 +96,8 @@ CSV 문자열은 수식으로 실행되지 않도록 시작 문자에 따라 이
 - [Docker Compose Linux 설치](https://docs.docker.com/compose/install/linux/): Compose plugin 필요.
 - [Docker build proxy arguments](https://docs.docker.com/build/building/variables/#proxy-arguments): 프록시 빌드 인자는 Dockerfile에 다시 선언하지 않음.
 - [Docker build secrets](https://docs.docker.com/build/building/secrets/): pip 저장소 설정은 이미지 ENV/ARG 대신 build secret 전달.
+
+## 수정 CL 스키마 갱신
+
+앱 시작 시 `app/migrations.py`가 기존 Finding 테이블에 없는 `fix_cl` 컬럼만 추가합니다. 기존 원문·판단·revision·이력을 유지하며 반복 실행해도 컬럼을 중복 추가하지 않습니다. PostgreSQL에서는 트랜잭션 advisory lock으로 앱 작업자 간 스키마 갱신을 직렬화합니다.
+기존 Fixed/verified에 수정 CL이 없었다면 값을 추정하지 않습니다. Closed를 유지하되 다음 검토 저장 시 실제 수정 CL을 입력해야 합니다. 운영 업데이트 전 DB 백업은 계속 필요합니다.

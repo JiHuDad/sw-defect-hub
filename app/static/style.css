@@ -4,3 +4,5 @@
 
 @media(min-width:481px) and (max-width:800px){.layout{grid-template-columns:150px 1fr}aside{padding:20px 12px}main{padding:22px 16px}.scope-grid{grid-template-columns:1fr}.header-right .tag{display:none}}
 .layout>main{margin:0 auto;align-self:start}
+
+.badge.closed{background:#e4f6ef;color:var(--green)}.badge.wont_fix{background:#eef1f7;color:#4c5970}.resolution-summary{padding:10px 0 16px}.resolution-summary p{margin:8px 0 0}

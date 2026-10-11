@@ -190,3 +190,55 @@ def test_part_groups_include_empty_parts_and_keep_scoped_counts(client):
     assert all(row['runs'] == row['findings'] == 0 for row in rows[2:])
     assert client.get('/api/groups?level=part&release=SVR26B&branch=INTEG&page=2').json() == []
     assert client.get('/api/groups?level=cl&release=SVR26B&branch=INTEG&part=FS').json() == []
+
+
+def test_resolution_closure_fix_cl_reopen_history_and_stats(client):
+    id = finding_id(client, upload(client).json()['id'])
+    endpoint = f'/api/findings/{id}'
+    base = {'actor': 'Reviewer', 'assignee': 'Owner', 'judgment': 'confirmed'}
+    assert client.get(endpoint).json()['status'] == 'open'
+    transitions = [
+        {'judgment': 'false_positive', 'progress': 'open', 'fix_cl': '', 'status': 'closed'},
+        {'judgment': 'confirmed', 'progress': 'wont_fix', 'fix_cl': '', 'status': 'closed'},
+        {'judgment': 'confirmed', 'progress': 'fixed', 'fix_cl': '98765', 'status': 'closed'},
+        {'judgment': 'confirmed', 'progress': 'verified', 'fix_cl': '98765', 'status': 'closed'},
+        {'judgment': 'confirmed', 'progress': 'open', 'fix_cl': '', 'status': 'open'},
+    ]
+    for revision, state in enumerate(transitions, 1):
+        expected_status = state['status']
+        body = base | {k: v for k, v in state.items() if k != 'status'} | {'revision': revision}
+        saved = client.patch(endpoint, json=body, headers=HEADERS)
+        assert saved.status_code == 200, saved.text
+        result = saved.json()
+        assert result['status'] == expected_status and result['fix_cl'] == state['fix_cl']
+        assert result['resolution'] == ('false_positive' if state['judgment'] == 'false_positive' else state['progress'] if expected_status == 'closed' else None)
+        listed = client.get(f'/api/runs/{result["run_id"]}').json()['findings'][0]
+        assert listed['status'] == expected_status and listed['fix_cl'] == state['fix_cl']
+        stats = client.get('/api/stats').json()['items'][0]
+        assert stats['closed'] == int(expected_status == 'closed')
+        assert stats['open'] + stats['closed'] == stats['findings'] == 1
+    events = client.get(endpoint+'/events').json()['items']
+    assert events[0]['detail']['status'] == {'before': 'closed', 'after': 'open'}
+    assert events[-1]['detail']['status'] == {'before': 'open', 'after': 'closed'}
+    assert events[0]['detail']['fix_cl'] == {'before': '98765', 'after': ''}
+    assert events[2]['detail']['fix_cl'] == {'before': '', 'after': '98765'}
+    stale = client.patch(endpoint, json=base | {'revision': 1, 'progress': 'fixed', 'fix_cl': '123'}, headers=HEADERS)
+    assert stale.status_code == 409 and client.get(endpoint).json()['status'] == 'open'
+    assert len(client.get(endpoint+'/events').json()['items']) == 5
+    assert 'open,closed' in client.get('/api/stats.csv').text
+
+
+@pytest.mark.parametrize('judgment,progress,fix_cl', [
+    ('confirmed', 'fixed', ''), ('confirmed', 'verified', ''),
+    ('confirmed', 'fixed', '0'), ('confirmed', 'fixed', 'abc'),
+    ('confirmed', 'fixed', '1; DROP TABLE findings'),
+    ('confirmed', 'wont_fix', '123'), ('confirmed', 'open', '123'),
+    ('false_positive', 'fixed', '123'), ('unreviewed', 'wont_fix', ''),
+])
+def test_invalid_resolution_is_atomic(client, judgment, progress, fix_cl):
+    id = finding_id(client, upload(client).json()['id'])
+    body = {'revision': 1, 'actor': 'Reviewer', 'judgment': judgment, 'progress': progress, 'fix_cl': fix_cl}
+    assert client.patch(f'/api/findings/{id}', json=body, headers=HEADERS).status_code == 422
+    item = client.get(f'/api/findings/{id}').json()
+    assert item['revision'] == 1 and item['status'] == 'open' and item['fix_cl'] == ''
+    assert client.get(f'/api/findings/{id}/events').json()['total'] == 0
